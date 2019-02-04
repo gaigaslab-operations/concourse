@@ -2,6 +2,7 @@ module Application.Msgs exposing (Msg(..), NavIndex)
 
 import Callback exposing (Callback)
 import Effects
+import Json.Encode
 import Keyboard
 import Routes
 import SubPage.Msgs
@@ -20,6 +21,7 @@ type Msg
     | Callback Effects.LayoutDispatch Callback
     | KeyDown Keyboard.KeyCode
     | KeyUp Keyboard.KeyCode
+    | ServerSentEvent Json.Encode.Value
 
 
 

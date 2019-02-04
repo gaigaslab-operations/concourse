@@ -65,7 +65,7 @@ port saveToken : String -> Cmd msg
 port requestLoginRedirect : String -> Cmd msg
 
 
-port openBuildEventStream : ( String, List String ) -> Cmd msg
+port openEventStream : { url : String, eventTypes : List String } -> Cmd msg
 
 
 type LayoutDispatch
@@ -123,7 +123,7 @@ type Effect
     | SaveToken String
     | LoadToken
     | ForceFocus String
-    | OpenBuildEventStream String (List String)
+    | OpenBuildEventStream { url : String, eventTypes : List String }
 
 
 type ScrollDirection
@@ -294,8 +294,8 @@ runEffect effect =
             Dom.focus dom
                 |> Task.attempt (always EmptyCallback)
 
-        OpenBuildEventStream url eventTypes ->
-            openBuildEventStream ( url, eventTypes )
+        OpenBuildEventStream config ->
+            openEventStream config
 
 
 fetchJobBuilds : Concourse.JobIdentifier -> Maybe Concourse.Pagination.Page -> Cmd Callback

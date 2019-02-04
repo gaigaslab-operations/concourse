@@ -118,6 +118,7 @@ init flags =
                 , hoveredElement = Nothing
                 , hoveredCounter = 0
                 , topBar = topBar
+                , eventStream = Nothing
                 }
     in
     ( model, effects ++ topBarEffects ++ [ GetCurrentTime ] )
@@ -132,13 +133,14 @@ subscriptions model =
     , Conditionally
         (getScrollBehavior model /= NoScroll)
         (OnAnimationFrame ScrollDown)
-    , model.currentBuild
-        |> RemoteData.toMaybe
-        |> Maybe.andThen .output
-        |> Maybe.andThen .events
-        |> Maybe.map Build.Output.subscribeToEvents
-        |> WhenPresent
     ]
+        ++ (case model.eventStream of
+                Just buildId ->
+                    [ Subscription.FromEventSource ]
+
+                Nothing ->
+                    []
+           )
 
 
 changeToBuild : BuildPageType -> Model -> ( Model, List Effect )
@@ -260,11 +262,15 @@ handleCallbackWithoutTopBar action model =
                         (Build.Output.planAndResourcesFetched buildId result)
                         model
             in
-            ( newModel
+            ( { newModel | eventStream = Just buildId }
             , effects
                 ++ [ Effects.OpenBuildEventStream
-                        ("/api/v1/builds/" ++ toString buildId ++ "/events")
-                        [ "end", "event" ]
+                        { url =
+                            "/api/v1/builds/"
+                                ++ toString buildId
+                                ++ "/events"
+                        , eventTypes = [ "end", "event" ]
+                        }
                    ]
             )
 

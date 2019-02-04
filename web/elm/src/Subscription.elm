@@ -2,7 +2,7 @@ port module Subscription exposing (Subscription(..), map, runSubscription)
 
 import AnimationFrame
 import Application.Msgs as Msgs exposing (Msg(..))
-import EventSource.EventSource as EventSource
+import Json.Encode
 import Keyboard
 import Mouse
 import Scroll
@@ -16,6 +16,9 @@ port newUrl : (String -> msg) -> Sub msg
 port tokenReceived : (Maybe String -> msg) -> Sub msg
 
 
+port eventSource : (Json.Encode.Value -> msg) -> Sub msg
+
+
 type Subscription m
     = OnClockTick Time.Time (Time.Time -> m)
     | OnAnimationFrame m
@@ -26,7 +29,7 @@ type Subscription m
     | OnKeyUp
     | OnScrollFromWindowBottom (Scroll.FromBottom -> m)
     | OnWindowResize (Window.Size -> m)
-    | FromEventSource ( String, List String ) (EventSource.Msg -> m)
+    | FromEventSource
     | OnNewUrl (String -> m)
     | OnTokenReceived (Maybe String -> m)
     | Conditionally Bool (Subscription m)
@@ -63,8 +66,8 @@ runSubscription s =
         OnWindowResize m ->
             Window.resizes m
 
-        FromEventSource key m ->
-            EventSource.listen key m
+        FromEventSource ->
+            eventSource Msgs.ServerSentEvent
 
         OnNewUrl m ->
             newUrl m
@@ -115,8 +118,8 @@ map f s =
         OnWindowResize m ->
             OnWindowResize (m >> f)
 
-        FromEventSource key m ->
-            FromEventSource key (m >> f)
+        FromEventSource ->
+            FromEventSource
 
         OnNewUrl m ->
             OnNewUrl (m >> f)

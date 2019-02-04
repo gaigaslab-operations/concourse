@@ -283,6 +283,10 @@ update msg model =
                 _ ->
                     ( model, [] )
 
+        ServerSentEvent json ->
+            flip always (Debug.log "event" json) <|
+                ( model, [] )
+
 
 redirectToLoginIfNecessary : Http.Error -> NavIndex -> List ( LayoutDispatch, Effect )
 redirectToLoginIfNecessary err navIndex =

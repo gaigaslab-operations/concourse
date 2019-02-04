@@ -337,12 +337,7 @@ setStepState state tree =
 subscribeToEvents : Int -> Subscription.Subscription Msg
 subscribeToEvents buildId =
     Subscription.map BuildEventsMsg
-        (Subscription.FromEventSource
-            ( "/api/v1/builds/" ++ toString buildId ++ "/events"
-            , [ "end", "event" ]
-            )
-            parseMsg
-        )
+        Subscription.FromEventSource
 
 
 parseMsg : EventSource.Msg -> EventsMsg
