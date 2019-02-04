@@ -22,6 +22,7 @@ import Expect
 import Html.Attributes as Attr
 import Routes
 import SubPage.Msgs
+import Subscription
 import Test exposing (..)
 import Test.Html.Event as Event
 import Test.Html.Query as Query
@@ -849,6 +850,51 @@ all =
                                     ]
                                 , attribute <| Attr.title "blocking"
                                 ]
+                            ]
+                ]
+            , describe "build events subscription" <|
+                let
+                    buildPlanReceived _ =
+                        pageLoad
+                            |> Tuple.first
+                            |> fetchStartedBuild
+                            |> Tuple.first
+                            |> fetchHistory
+                            |> Tuple.first
+                            |> fetchJobDetails
+                            |> Tuple.first
+                            |> Build.handleCallback
+                                (Callback.PlanAndResourcesFetched 1 <|
+                                    Ok <|
+                                        ( { id = "plan"
+                                          , step =
+                                                Concourse.BuildStepGet
+                                                    "step"
+                                                    Nothing
+                                          }
+                                        , { inputs = [], outputs = [] }
+                                        )
+                                )
+                in
+                [ test "after build plan is received, opens event stream" <|
+                    buildPlanReceived
+                        >> Expect.all
+                            [ Tuple.second
+                                >> Expect.equal
+                                    [ Effects.OpenBuildEventStream
+                                        "/api/v1/builds/1/events"
+                                        [ "end", "event" ]
+                                    ]
+                            , Tuple.first
+                                >> Build.subscriptions
+                                >> List.member
+                                    (Subscription.FromEventSource
+                                        ( "/api/v1/builds/1/events"
+                                        , [ "end", "event" ]
+                                        )
+                                    )
+                                >> Expect.true
+                                    "why aren't we listening for build events!?"
                             ]
                 ]
             , describe "step header" <|

@@ -254,7 +254,19 @@ handleCallbackWithoutTopBar action model =
                 ( model, [] )
 
         PlanAndResourcesFetched buildId result ->
-            updateOutput (Build.Output.planAndResourcesFetched buildId result) model
+            let
+                ( newModel, effects ) =
+                    updateOutput
+                        (Build.Output.planAndResourcesFetched buildId result)
+                        model
+            in
+            ( newModel
+            , effects
+                ++ [ Effects.OpenBuildEventStream
+                        ("/api/v1/builds/" ++ toString buildId ++ "/events")
+                        [ "end", "event" ]
+                   ]
+            )
 
         BuildHistoryFetched (Err err) ->
             flip always (Debug.log "failed to fetch build history" err) <|
