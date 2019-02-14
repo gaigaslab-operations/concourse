@@ -6,7 +6,6 @@ import (
 	"code.cloudfoundry.org/lager"
 	"github.com/concourse/concourse/atc/api/auth"
 	"github.com/concourse/concourse/atc/db"
-	"github.com/concourse/concourse/atc/engine"
 	"github.com/concourse/concourse/atc/worker"
 )
 
@@ -18,7 +17,6 @@ type Server struct {
 	externalURL string
 	peerURL     string
 
-	engine              engine.Engine
 	workerClient        worker.Client
 	teamFactory         db.TeamFactory
 	buildFactory        db.BuildFactory
@@ -31,7 +29,6 @@ func NewServer(
 	logger lager.Logger,
 	externalURL string,
 	peerURL string,
-	engine engine.Engine,
 	workerClient worker.Client,
 	teamFactory db.TeamFactory,
 	buildFactory db.BuildFactory,
@@ -44,7 +41,6 @@ func NewServer(
 		externalURL: externalURL,
 		peerURL:     peerURL,
 
-		engine:              engine,
 		workerClient:        workerClient,
 		teamFactory:         teamFactory,
 		buildFactory:        buildFactory,

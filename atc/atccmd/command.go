@@ -537,27 +537,12 @@ func (cmd *RunCommand) constructAPIMembers(
 		workerProvider,
 	)
 
-	resourceFetcher := resourceFetcherFactory.FetcherFor(workerClient)
 	resourceFactory := resource.NewResourceFactory(workerClient)
-	defaultLimits, err := cmd.parseDefaultLimits()
-	if err != nil {
-		return nil, err
-	}
 
 	variablesFactory, err := cmd.variablesFactory(logger)
 	if err != nil {
 		return nil, err
 	}
-
-	engine := cmd.constructEngine(workerClient, resourceFetcher, resourceFactory, dbResourceCacheFactory, dbResourceConfigFactory, variablesFactory, defaultLimits)
-
-	radarSchedulerFactory := pipelines.NewRadarSchedulerFactory(
-		resourceFactory,
-		dbResourceConfigFactory,
-		cmd.ResourceTypeCheckingInterval,
-		cmd.ResourceCheckingInterval,
-		engine,
-	)
 
 	radarScannerFactory := radar.NewScannerFactory(
 		resourceFactory,
@@ -591,11 +576,8 @@ func (cmd *RunCommand) constructAPIMembers(
 		gcContainerDestroyer,
 		dbBuildFactory,
 		dbResourceConfigFactory,
-		engine,
 		workerClient,
-		workerProvider,
 		drain,
-		radarSchedulerFactory,
 		radarScannerFactory,
 		variablesFactory,
 		credsManagers,
@@ -1277,11 +1259,8 @@ func (cmd *RunCommand) constructAPIHandler(
 	gcContainerDestroyer gc.Destroyer,
 	dbBuildFactory db.BuildFactory,
 	resourceConfigFactory db.ResourceConfigFactory,
-	engine engine.Engine,
 	workerClient worker.Client,
-	workerProvider worker.WorkerProvider,
 	drain <-chan struct{},
-	radarSchedulerFactory pipelines.RadarSchedulerFactory,
 	radarScannerFactory radar.ScannerFactory,
 	variablesFactory creds.VariablesFactory,
 	credsManagers creds.Managers,
@@ -1325,10 +1304,7 @@ func (cmd *RunCommand) constructAPIHandler(
 		buildserver.NewEventHandler,
 		drain,
 
-		engine,
 		workerClient,
-		workerProvider,
-		radarSchedulerFactory,
 		radarScannerFactory,
 
 		reconfigurableSink,
