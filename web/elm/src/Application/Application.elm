@@ -12,10 +12,12 @@ module Application.Application exposing
 import Application.Msgs as Msgs exposing (Msg(..), NavIndex)
 import Build.Msgs
 import Callback exposing (Callback(..))
+import Concourse.BuildEvents
 import Dashboard.Msgs
 import Effects exposing (Effect(..), LayoutDispatch(..))
 import Html exposing (Html)
 import Http
+import Json.Decode
 import Navigation
 import Resource.Msgs
 import Routes
@@ -284,8 +286,17 @@ update msg model =
                     ( model, [] )
 
         ServerSentEvent json ->
-            flip always (Debug.log "event" json) <|
-                ( model, [] )
+            let
+                buildEvent =
+                    Json.Decode.decodeValue Concourse.BuildEvents.decodeBuildEventEnvelope json
+            in
+            update
+                (SubMsg model.navIndex <|
+                    SubPage.Msgs.BuildMsg <|
+                        Build.Msgs.BuildEventsMsg <|
+                            buildEvent
+                )
+                model
 
 
 redirectToLoginIfNecessary : Http.Error -> NavIndex -> List ( LayoutDispatch, Effect )

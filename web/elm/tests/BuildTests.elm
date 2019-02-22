@@ -20,6 +20,7 @@ import Dict
 import Effects
 import Expect
 import Html.Attributes as Attr
+import Json.Encode
 import Routes
 import SubPage.Msgs
 import Subscription
@@ -45,7 +46,11 @@ all =
     describe "build page" <|
         let
             buildId =
-                { teamName = "team", pipelineName = "pipeline", jobName = "job", buildName = "1" }
+                { teamName = "team"
+                , pipelineName = "pipeline"
+                , jobName = "job"
+                , buildName = "1"
+                }
 
             pageLoad =
                 Build.init
@@ -92,15 +97,21 @@ all =
 
             fetchBuild : Models.Model -> ( Models.Model, List Effects.Effect )
             fetchBuild =
-                Build.handleCallback <| Callback.BuildFetched <| Ok ( 1, theBuild )
+                Build.handleCallback <|
+                    Callback.BuildFetched <|
+                        Ok ( 1, theBuild )
 
             fetchStartedBuild :
                 Models.Model
                 -> ( Models.Model, List Effects.Effect )
             fetchStartedBuild =
-                Build.handleCallback <| Callback.BuildFetched <| Ok ( 1, startedBuild )
+                Build.handleCallback <|
+                    Callback.BuildFetched <|
+                        Ok ( 1, startedBuild )
 
-            fetchJobDetails : Models.Model -> ( Models.Model, List Effects.Effect )
+            fetchJobDetails :
+                Models.Model
+                -> ( Models.Model, List Effects.Effect )
             fetchJobDetails =
                 Build.handleCallback <|
                     Callback.BuildJobDetailsFetched <|
@@ -213,35 +224,8 @@ all =
                                 )
                         )
                     |> Tuple.first
-                    |> Application.update
-                        (Msgs.SubMsg 1
-                            (SubPage.Msgs.BuildMsg
-                                (Build.Msgs.BuildEventsMsg Build.Msgs.Opened)
-                            )
-                        )
-                    |> Tuple.first
-                    |> Application.update
-                        (Msgs.SubMsg 1
-                            (SubPage.Msgs.BuildMsg
-                                (Build.Msgs.BuildEventsMsg <|
-                                    Build.Msgs.Events <|
-                                        Ok <|
-                                            Array.fromList
-                                                [ Models.StartTask
-                                                    { source = "stdout"
-                                                    , id = "stepid"
-                                                    }
-                                                , Models.Log
-                                                    { source = "stdout"
-                                                    , id = "stepid"
-                                                    }
-                                                    "log message"
-                                                    Nothing
-                                                ]
-                                )
-                            )
-                        )
-                    |> Tuple.first
+                    |> receiveEvent "{\"data\":{\"time\":1550776389,\"origin\":{\"id\":\"stepid\"}},\"event\":\"start-task\"}" ""
+                    |> receiveEvent "{\"data\":{\"time\":1550776389,\"origin\":{\"id\":\"stepid\",\"source\":\"stdout\"},\"payload\":\"log message\"},\"event\":\"log\"}" ""
                     |> Application.view
                     |> Query.fromHtml
                     |> Query.find
@@ -249,6 +233,71 @@ all =
                         , containing [ text "log message" ]
                         ]
                     |> Query.has [ class "highlighted-line" ]
+        , test "events from a different build are discarded" <|
+            \_ ->
+                Application.init
+                    { turbulenceImgSrc = ""
+                    , notFoundImgSrc = ""
+                    , csrfToken = ""
+                    , authToken = ""
+                    , pipelineRunningKeyframes = ""
+                    }
+                    { href = ""
+                    , host = ""
+                    , hostname = ""
+                    , protocol = ""
+                    , origin = ""
+                    , port_ = ""
+                    , pathname = "/builds/1"
+                    , search = ""
+                    , hash = "#Lstepid:1"
+                    , username = ""
+                    , password = ""
+                    }
+                    |> Tuple.first
+                    |> Application.handleCallback
+                        (Effects.SubPage 1)
+                        (Callback.BuildFetched <|
+                            Ok
+                                ( 1
+                                , { id = 1
+                                  , name = "1"
+                                  , job = Nothing
+                                  , status = Concourse.BuildStatusStarted
+                                  , duration =
+                                        { startedAt = Nothing
+                                        , finishedAt = Nothing
+                                        }
+                                  , reapTime = Nothing
+                                  }
+                                )
+                        )
+                    |> Tuple.first
+                    |> Application.handleCallback
+                        (Effects.SubPage 1)
+                        (Callback.PlanAndResourcesFetched 307 <|
+                            Ok <|
+                                ( { id = "stepid"
+                                  , step =
+                                        Concourse.BuildStepTask
+                                            "step"
+                                  }
+                                , { inputs = [], outputs = [] }
+                                )
+                        )
+                    |> Tuple.first
+                    |> receiveEvent
+                        "{\"data\":{\"time\":1550776389,\"origin\":{\"id\":\"stepid\"}},\"event\":\"start-task\"}"
+                        "http://localhost:8080/api/v1/builds/1/events"
+                    |> receiveEvent
+                        "{\"data\":{\"time\":1550776389,\"origin\":{\"id\":\"stepid\",\"source\":\"stdout\"},\"payload\":\"log message\"},\"event\":\"log\"}"
+                        "http://localhost:8080/api/v1/builds/1/events"
+                    |> receiveEvent
+                        "{\"data\":{\"time\":1550776389,\"origin\":{\"id\":\"stepid\",\"source\":\"stdout\"},\"payload\":\"bad message\"},\"event\":\"log\"}"
+                        "http://localhost:8080/api/v1/builds/2/events"
+                    |> Application.view
+                    |> Query.fromHtml
+                    |> Query.hasNot [ text "bad message" ]
         , test "pressing 'T' twice triggers two builds" <|
             \_ ->
                 Application.init
@@ -1243,19 +1292,17 @@ all =
                         >> Query.count (Expect.equal 1)
                 , test "successful step has a checkmark at the far right" <|
                     fetchPlanWithGetStep
-                        >> Build.update (Build.Msgs.BuildEventsMsg Build.Msgs.Opened)
-                        >> Tuple.first
                         >> Build.update
                             (Build.Msgs.BuildEventsMsg <|
-                                Build.Msgs.Events <|
-                                    Ok <|
-                                        Array.fromList
-                                            [ Models.FinishGet
-                                                { source = "stdout", id = "plan" }
-                                                0
-                                                Dict.empty
-                                                []
-                                            ]
+                                Ok <|
+                                    { url = ""
+                                    , data =
+                                        Models.FinishGet
+                                            { source = "stdout", id = "plan" }
+                                            0
+                                            Dict.empty
+                                            []
+                                    }
                             )
                         >> Tuple.first
                         >> Build.view UserState.UserStateLoggedOut
@@ -1272,19 +1319,17 @@ all =
                             )
                 , test "get step lists resource version on the right" <|
                     fetchPlanWithGetStep
-                        >> Build.update (Build.Msgs.BuildEventsMsg Build.Msgs.Opened)
-                        >> Tuple.first
                         >> Build.update
                             (Build.Msgs.BuildEventsMsg <|
-                                Build.Msgs.Events <|
-                                    Ok <|
-                                        Array.fromList
-                                            [ Models.FinishGet
-                                                { source = "stdout", id = "plan" }
-                                                0
-                                                (Dict.fromList [ ( "version", "v3.1.4" ) ])
-                                                []
-                                            ]
+                                Ok <|
+                                    { url = ""
+                                    , data =
+                                        Models.FinishGet
+                                            { source = "stdout", id = "plan" }
+                                            0
+                                            (Dict.fromList [ ( "version", "v3.1.4" ) ])
+                                            []
+                                    }
                             )
                         >> Tuple.first
                         >> Build.view UserState.UserStateLoggedOut
@@ -1297,14 +1342,14 @@ all =
                     fetchPlanWithTaskStep
                         >> Build.update
                             (Build.Msgs.BuildEventsMsg <|
-                                Build.Msgs.Events <|
-                                    Ok <|
-                                        Array.fromList
-                                            [ Models.StartTask
-                                                { source = "stdout"
-                                                , id = "plan"
-                                                }
-                                            ]
+                                Ok <|
+                                    { url = ""
+                                    , data =
+                                        Models.StartTask
+                                            { source = "stdout"
+                                            , id = "plan"
+                                            }
+                                    }
                             )
                         >> Tuple.first
                         >> Build.view UserState.UserStateLoggedOut
@@ -1321,19 +1366,17 @@ all =
                             ]
                 , test "failing step has an X at the far right" <|
                     fetchPlanWithGetStep
-                        >> Build.update (Build.Msgs.BuildEventsMsg Build.Msgs.Opened)
-                        >> Tuple.first
                         >> Build.update
                             (Build.Msgs.BuildEventsMsg <|
-                                Build.Msgs.Events <|
-                                    Ok <|
-                                        Array.fromList
-                                            [ Models.FinishGet
-                                                { source = "stdout", id = "plan" }
-                                                1
-                                                Dict.empty
-                                                []
-                                            ]
+                                Ok <|
+                                    { url = ""
+                                    , data =
+                                        Models.FinishGet
+                                            { source = "stdout", id = "plan" }
+                                            1
+                                            Dict.empty
+                                            []
+                                    }
                             )
                         >> Tuple.first
                         >> Build.view UserState.UserStateLoggedOut
@@ -1350,17 +1393,15 @@ all =
                             )
                 , test "erroring step has orange exclamation triangle at right" <|
                     fetchPlanWithGetStep
-                        >> Build.update (Build.Msgs.BuildEventsMsg Build.Msgs.Opened)
-                        >> Tuple.first
                         >> Build.update
                             (Build.Msgs.BuildEventsMsg <|
-                                Build.Msgs.Events <|
-                                    Ok <|
-                                        Array.fromList
-                                            [ Models.Error
-                                                { source = "stderr", id = "plan" }
-                                                "error message"
-                                            ]
+                                Ok <|
+                                    { url = ""
+                                    , data =
+                                        Models.Error
+                                            { source = "stderr", id = "plan" }
+                                            "error message"
+                                    }
                             )
                         >> Tuple.first
                         >> Build.view UserState.UserStateLoggedOut
@@ -1381,19 +1422,19 @@ all =
                         erroringBuild =
                             fetchPlanWithGetStep
                                 >> Build.update
-                                    (Build.Msgs.BuildEventsMsg Build.Msgs.Errored)
+                                    (Build.Msgs.BuildEventsMsg (Result.Err "server burned down"))
                                 >> Tuple.first
                     in
                     [ test "has orange exclamation triangle at left" <|
                         erroringBuild
                             >> Build.update
                                 (Build.Msgs.BuildEventsMsg <|
-                                    Build.Msgs.Events <|
-                                        Ok <|
-                                            Array.fromList
-                                                [ Models.BuildError
-                                                    "error message"
-                                                ]
+                                    Ok <|
+                                        { url = ""
+                                        , data =
+                                            Models.BuildError
+                                                "error message"
+                                        }
                                 )
                             >> Tuple.first
                             >> Build.view UserState.UserStateLoggedOut
@@ -1428,3 +1469,16 @@ all =
 tooltipGreyHex : String
 tooltipGreyHex =
     "#9b9b9b"
+
+
+receiveEvent : String -> String -> Application.Model -> Application.Model
+receiveEvent data url =
+    Application.update
+        (Msgs.ServerSentEvent <|
+            Json.Encode.object
+                [ ( "data", Json.Encode.string data )
+                , ( "url", Json.Encode.string url )
+                , ( "type", Json.Encode.string "event" )
+                ]
+        )
+        >> Tuple.first

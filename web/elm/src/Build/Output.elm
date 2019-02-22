@@ -3,7 +3,6 @@ module Build.Output exposing
     , handleEventsMsg
     , handleStepTreeMsg
     , init
-    , parseMsg
     , planAndResourcesFetched
     , subscribeToEvents
     , view
@@ -14,6 +13,7 @@ import Array exposing (Array)
 import Build.Models
     exposing
         ( BuildEvent(..)
+        , BuildEventEnvelope
         , OutputModel
         , OutputState(..)
         , StepState(..)
@@ -24,12 +24,10 @@ import Build.Msgs exposing (EventsMsg(..), Msg(..))
 import Build.StepTree as StepTree
 import Build.Styles as Styles
 import Concourse
-import Concourse.BuildEvents as BuildEvents
 import Concourse.BuildStatus
 import Date exposing (Date)
 import Dict exposing (Dict)
 import Effects exposing (Effect(..))
-import EventSource.EventSource as EventSource
 import Html exposing (Html)
 import Html.Attributes
     exposing
@@ -134,54 +132,27 @@ planAndResourcesFetched buildId result model =
 
 
 handleEventsMsg :
-    EventsMsg
+    Result String BuildEventEnvelope
     -> OutputModel
     -> ( OutputModel, List Effect, OutMsg )
 handleEventsMsg action model =
     case action of
-        Opened ->
-            ( { model | eventSourceOpened = True }, [], OutNoop )
+        -- Opened ->
+        --     ( { model | eventSourceOpened = True }, [], OutNoop )
+        Ok { url, data } ->
+            handleEvent data model
 
-        Errored ->
-            if model.eventSourceOpened then
-                -- connection could have dropped out of the blue; just let the browser
-                -- handle reconnecting
-                ( model, [], OutNoop )
-
-            else
-                -- assume request was rejected because auth is required; no way to
-                -- really tell
-                ( { model | state = NotAuthorized }, [], OutNoop )
-
-        Events (Ok events) ->
-            Array.foldl handleEvent_ ( model, [], OutNoop ) events
-
-        Events (Err err) ->
+        Err err ->
             flip always (Debug.log "failed to get event" err) <|
-                ( model, [], OutNoop )
+                if model.eventSourceOpened then
+                    -- connection could have dropped out of the blue;
+                    -- just let the browser handle reconnecting
+                    ( model, [], OutNoop )
 
-
-handleEvent_ :
-    BuildEvent
-    -> ( OutputModel, List Effect, OutMsg )
-    -> ( OutputModel, List Effect, OutMsg )
-handleEvent_ ev ( m, msgpassedin, outmsgpassedin ) =
-    let
-        ( m1, msgfromhandleevent, outmsgfromhandleevent ) =
-            handleEvent ev m
-    in
-    ( m1
-    , if msgfromhandleevent == [] then
-        msgpassedin
-
-      else
-        msgfromhandleevent
-    , if outmsgfromhandleevent == OutNoop then
-        outmsgpassedin
-
-      else
-        outmsgfromhandleevent
-    )
+                else
+                    -- assume request was rejected because auth is required;
+                    -- no way to really tell
+                    ( { model | state = NotAuthorized }, [], OutNoop )
 
 
 handleEvent :
@@ -338,19 +309,6 @@ subscribeToEvents : Int -> Subscription.Subscription Msg
 subscribeToEvents buildId =
     Subscription.map BuildEventsMsg
         Subscription.FromEventSource
-
-
-parseMsg : EventSource.Msg -> EventsMsg
-parseMsg msg =
-    case msg of
-        EventSource.Events evs ->
-            Events (BuildEvents.parseEvents evs)
-
-        EventSource.Opened ->
-            Opened
-
-        EventSource.Errored ->
-            Errored
 
 
 view : Concourse.Build -> OutputModel -> Html Msg

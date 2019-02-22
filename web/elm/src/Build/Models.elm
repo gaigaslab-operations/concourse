@@ -1,5 +1,6 @@
 module Build.Models exposing
     ( BuildEvent(..)
+    , BuildEventEnvelope
     , BuildPageType(..)
     , HookedStep
     , Hoverable(..)
@@ -176,6 +177,12 @@ type alias HookedStep =
 type TabFocus
     = Auto
     | User
+
+
+type alias BuildEventEnvelope =
+    { data : BuildEvent
+    , url : String
+    }
 
 
 type BuildEvent
